@@ -6,7 +6,8 @@
       <title>CPU Cores (mstats)</title>
       <chart>
         <search>
-          <query>| mstats avg("sensors.*core*") as "v*" where index=metrics by metric_name span=5m
+          <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
+| search metric_name="sensors.coretemp_core_*"
 | foreach v* [eval Value=coalesce(Value,&lt;&lt;FIELD&gt;&gt;)]
 | fields - v*
 | xyseries _time metric_name Value</query>
@@ -21,7 +22,8 @@
       <title>Temperatures (mstats)</title>
       <chart>
         <search>
-          <query>| mstats avg("sensors.*temp*") as "v*" where index=metrics by metric_name span=5m
+          <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
+| search metric_name="sensors.*temp*" OR metric_name="sensors.nvme*" OR metric_name="sensors.*package*"
 | foreach v* [eval Value=coalesce(Value,&lt;&lt;FIELD&gt;&gt;)]
 | fields - v*
 | xyseries _time metric_name Value</query>
@@ -38,7 +40,8 @@
       <title>Fans (mstats)</title>
       <chart>
         <search>
-          <query>| mstats avg("sensors.*fan*") as "v*" where index=metrics by metric_name span=5m
+          <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
+| search metric_name="sensors.*fan*"
 | foreach v* [eval Value=coalesce(Value,&lt;&lt;FIELD&gt;&gt;)]
 | fields - v*
 | xyseries _time metric_name Value</query>

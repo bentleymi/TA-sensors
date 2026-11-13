@@ -37,7 +37,7 @@
       <title>Non-OK / Alarm Readings (newest first)</title>
       <table>
         <search>
-          <query>index=main sourcetype="sensors:status" _raw=*alarm*
+          <query>index=main sourcetype="sensors:status" _raw="*alarm*"
 | sort - _time
 | table _time host _raw
 | rename _raw as Event

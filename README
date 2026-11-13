@@ -1,40 +1,119 @@
-TA-sensors
-==========
+TA-sensors (Linux hwmon Sensors Telemetry Add-on)
+==================================================
 
 Scripted-input add-on that collects Linux hwmon telemetry (the lm-sensors
-data model) from /sys/class/hwmon - designed for BMC-less hosts where
-IPMI/ipmitool is unavailable (consumer desktops, VMs, SBCs).
+data model) directly from /sys/class/hwmon - designed for BMC-less hosts
+where IPMI/ipmitool is unavailable: consumer desktops, gaming rigs, VMs,
+SBCs and any machine without a management controller.
 
-No third-party dependencies: stdlib-only python3, no ipmitool, no lm-sensors.
+No third-party dependencies: stdlib-only python3. No ipmitool, no lm-sensors
+(sensors(1)), no kernel modules beyond the hwmon drivers your kernel already
+loads (coretemp, k10temp, nvme, acpitz, r8169, mt7921, ...).
 
-Inputs (both enabled by default, 60s interval):
+Prerequisites
+-------------
+  * Linux kernel with hwmon sensors registered under /sys/class/hwmon
+    (check: ls /sys/class/hwmon/*/name). If that list is empty there is
+    nothing for this add-on to collect.
+  * Splunk Enterprise or Universal Forwarder 9.x - 10.6 (forwarder is the
+    recommended deployment on monitored hosts).
+  * python3.9+ available to Splunk (all Splunk 9.x/10.x builds ship one;
+    inputs request python.version = python3).
+  * A metrics-typed index (defaults to "metrics"): the flat sensor stream
+    is emitted as real metric events via METRIC-SCHEMA, so the destination
+    index must have datatype = metric, e.g. in indexes.conf:
+
+      [metrics]
+      datatype = metric
+      homePath = $SPLUNK_DB/metrics/db
+      coldPath = $SPLUNK_DB/metrics/colddb
+      thawedPath = $SPLUNK_DB/metrics/thaweddb
+
+    On forwarders the index only needs to exist on the indexer.
+  * /sys/class/hwmon must be world-readable (it is by default).
+  * No network egress, no root, and no additional OS packages required.
+  * No dependent apps. TA-sensors is fully standalone; it pairs nicely
+    with TA-IPMI (which covers BMC-equipped servers) but does not require
+    it.
+
+Install
+-------
+Forwarder hosts (recommended): install on each monitored Linux host, or
+push via deployment server. Indexer side: install on the search head for
+the dashboards, and make sure props.conf/transforms.conf ship to the
+indexer (app deployment keeps these together).
+
+  1. Install TA-sensors (Splunk UI > Apps > Install app from file, or
+     unpack into $SPLUNK_HOME/etc/apps/ on each host).
+  2. Restart Splunk.
+  3. Confirm data: index=main sourcetype="sensors:status" | head
+
+On forwarder-only deployments the two scripted inputs run on the
+forwarder; index-time rules (metric schema) apply on the indexer.
+
+What is collected
+-----------------
+Two scripted inputs (default interval 60s, both enabled):
 
   sensors_events.py   index=main     sourcetype=sensors:status
-                      Nested JSON: {"chips": {"<chip>": {"<key>":
-                      {"sensor_name","reading","reading_value","units","status"}}}}
+      One nested-JSON event per collection cycle:
+      {"chips": {"<chip>": {"<key>": {"sensor_name","reading",
+      "reading_value","units","status"}}}}
+      Chip and key names are sanitized to [a-z0-9_]; duplicate chip names
+      (e.g. several "nvme" drives) get their hwmon number appended so
+      every drive stays visible.
 
   sensors_metrics.py  index=metrics  sourcetype=sensors:metrics
-                      Ingest-time metric events named sensors.<chip>_<key>
-                      (via METRIC-SCHEMA-TRANSFORMS) for mstats analytics.
+      One metric event per cycle; each numeric sensor becomes a metric
+      named  sensors.<chip>_<key>  plus a  <metric>_status  string
+      ("ok" or "alarm"). Metric names pass mstats/mcatalog filters.
 
-Families collected: temp (celsius), in (volts), power (watts), current (amps),
-humidity (percent_rh), fan (rpm). Raw milli-scaled hwmon inputs are normalized
-by /1000 (fan stays raw rpm). A sensor whose "_alarm" latch is set reports
-status "alarm", otherwise "ok".
+Families: temp (celsius), in (volts), power (watts), current (amps),
+humidity (percent_rh), fan (rpm). Milli-scaled sysfs inputs are
+normalized by /1000 (fan stays raw rpm). Sensors whose "_alarm" latch is
+set report status "alarm"; "crit"/"max" limits are collected as-is in the
+events stream if present.
 
-Dashboards (app nav or Views):
+Dashboards
+----------
+  Sensors Overview   hosts reporting, current readings (mstats), and an
+                     "not ok" / alarm alarm table straight off the
+                     events stream.
+  Sensors Metrics    mstats time-series panels: CPU cores, temperatures
+                     (incl. NVMe/pack- age), fans, voltages, power draw,
+                     and live sensors.* metric count.
+                     Requires the metrics-typed index above.
 
-  Sensors Overview   per-host reporting, current readings, non-ok/alarm table
-  Sensors Metrics    mstats time-series: CPU cores, temperatures, fans,
-                     voltages, power draw, live sensors.* metric count
+Verify / search quick reference
+-------------------------------
+  index=main sourcetype="sensors:status" | head
+  | mcatalog values(metric_name) where index=metrics metric_name="sensors.*" by host
+  | mstats avg("sensors.*") where index=metrics span=60s by host
 
-Search quick reference:
+Configure
+---------
+Override interval or destination index in
+etc/apps/TA-sensors/local/inputs.conf (never edit default/). To run on a
+subset of hosts, deploy the app per-host or disable unneeded inputs with
+disabled = 1. To emit only events (no metrics), disable sensors_metrics.py.
 
-  index=main sourcetype="sensors:status"
-  | mstats avg("sensors.*") where index=metrics by metric_name span=5m
+Troubleshooting
+---------------
+  * No data: check ls /sys/class/hwmon/*/name on the host, then
+    "$SPLUNK_HOME/bin/splunk cmd python <app>/bin/sensors_metrics.py"
+    from the host - it prints the exact JSON Splunk will ingest.
+  * Status events but no metrics: the "metrics" index is missing or is
+    not datatype = metric - metric events to an event-type index (and
+    plain events to a metric index) are silently dropped.
+  * Metric dashboards blank: metric searches must use mstats/mcatalog;
+    plain "search index=metrics" returns nothing by design on a
+    metric-typed index.
+  * Wildcard metric filters: use a trailing wildcard (avg("sensors.*"))
+    or a | search metric_name="*cpu*" filter; mid-string wildcards in
+    mstats series arguments are not supported.
 
-Configure interval/index by overriding default/inputs.conf in
-etc/apps/TA-sensors/local/inputs.conf.
-
-License: SOURCE-AVAILABLE (see LICENSE) - free personal/evaluation use,
-commercial use requires a paid license from BentleyPC LLC.
+License
+-------
+SOURCE-AVAILABLE (see LICENSE) - free personal, educational and evaluation
+use; commercial or production use requires a paid license from BentleyPC
+LLC (https://www.bentleypc.com).
