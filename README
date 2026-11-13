@@ -1,0 +1,40 @@
+TA-sensors
+==========
+
+Scripted-input add-on that collects Linux hwmon telemetry (the lm-sensors
+data model) from /sys/class/hwmon - designed for BMC-less hosts where
+IPMI/ipmitool is unavailable (consumer desktops, VMs, SBCs).
+
+No third-party dependencies: stdlib-only python3, no ipmitool, no lm-sensors.
+
+Inputs (both enabled by default, 60s interval):
+
+  sensors_events.py   index=main     sourcetype=sensors:status
+                      Nested JSON: {"chips": {"<chip>": {"<key>":
+                      {"sensor_name","reading","reading_value","units","status"}}}}
+
+  sensors_metrics.py  index=metrics  sourcetype=sensors:metrics
+                      Ingest-time metric events named sensors.<chip>_<key>
+                      (via METRIC-SCHEMA-TRANSFORMS) for mstats analytics.
+
+Families collected: temp (celsius), in (volts), power (watts), current (amps),
+humidity (percent_rh), fan (rpm). Raw milli-scaled hwmon inputs are normalized
+by /1000 (fan stays raw rpm). A sensor whose "_alarm" latch is set reports
+status "alarm", otherwise "ok".
+
+Dashboards (app nav or Views):
+
+  Sensors Overview   per-host reporting, current readings, non-ok/alarm table
+  Sensors Metrics    mstats time-series: CPU cores, temperatures, fans,
+                     voltages, power draw, live sensors.* metric count
+
+Search quick reference:
+
+  index=main sourcetype="sensors:status"
+  | mstats avg("sensors.*") where index=metrics by metric_name span=5m
+
+Configure interval/index by overriding default/inputs.conf in
+etc/apps/TA-sensors/local/inputs.conf.
+
+License: SOURCE-AVAILABLE (see LICENSE) - free personal/evaluation use,
+commercial use requires a paid license from BentleyPC LLC.

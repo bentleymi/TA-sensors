@@ -1,0 +1,7 @@
+<application>
+  <nav>
+    <view name="sensors_overview" />
+    <view name="sensors_metrics" />
+    <search label="Sensors Events" search="search index=main sourcetype=sensors:status" />
+  </nav>
+</application>
