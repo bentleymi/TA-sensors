@@ -1,100 +1,127 @@
 <dashboard version="1.1" theme="light">
-  <label>Sensors Metrics</label>
-  <description>Index-time metrics over index=metrics (sourcetype=sensors:metrics)</description>
+  <label>TA-sensors Metrics</label>
+  <description>Index-time metrics over index=metrics (sourcetype sensors:metrics); one series per chip-sensor metric, named sensors.*.</description>
   <row>
     <panel>
-      <title>CPU Cores (mstats)</title>
+      <title>All sensors.* series (per sensor, per chip, per host in legend order)</title>
       <chart>
         <search>
           <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
-| search metric_name="sensors.coretemp_core_*"
-| foreach v* [eval Value=coalesce(Value,&lt;&lt;FIELD&gt;&gt;)]
-| fields - v*
-| xyseries _time metric_name Value</query>
+| rename v* as "sensors.*"</query>
           <done/>
         </search>
         <option name="charting.chart">line</option>
-        <option name="charting.chart.showDataLabels">none</option>
-        <option name="charting.drilldown">none</option>
-      </chart>
-    </panel>
-    <panel>
-      <title>Temperatures (mstats)</title>
-      <chart>
-        <search>
-          <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
-| search metric_name="sensors.*temp*" OR metric_name="sensors.nvme*" OR metric_name="sensors.*package*"
-| foreach v* [eval Value=coalesce(Value,&lt;&lt;FIELD&gt;&gt;)]
-| fields - v*
-| xyseries _time metric_name Value</query>
-          <done/>
-        </search>
-        <option name="charting.chart">line</option>
-        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.nullValueRendering">connect</option>
         <option name="charting.drilldown">none</option>
       </chart>
     </panel>
   </row>
   <row>
     <panel>
-      <title>Fans (mstats)</title>
+      <title>Temperatures (°C - CPU cores, package, chipsets, PCIe, NVMe)</title>
       <chart>
         <search>
           <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
-| search metric_name="sensors.*fan*"
-| foreach v* [eval Value=coalesce(Value,&lt;&lt;FIELD&gt;&gt;)]
-| fields - v*
-| xyseries _time metric_name Value</query>
+| search metric_name="*temp*"
+| rename v* as "sensors.*"</query>
           <done/>
         </search>
         <option name="charting.chart">line</option>
-        <option name="charting.chart.showDataLabels">none</option>
-        <option name="charting.drilldown">none</option>
-      </chart>
-    </panel>
-    <panel>
-      <title>Voltages (mstats — Vcore/Vin/12V/3V3/5V/BAT…)</title>
-      <chart>
-        <search>
-          <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
-| search metric_name IN ("sensors.*vcore*","sensors.*vdd*","sensors.*vin*","sensors.*12v*","sensors.*3v*","sensors.*5v*","sensors.*bat*","sensors.*_in*","sensors.*vsoc*","sensors.*mem*")
-| foreach v* [eval Value=coalesce(Value,&lt;&lt;FIELD&gt;&gt;)]
-| fields - v*
-| xyseries _time metric_name Value</query>
-          <done/>
-        </search>
-        <option name="charting.chart">line</option>
-        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.nullValueRendering">connect</option>
         <option name="charting.drilldown">none</option>
       </chart>
     </panel>
   </row>
   <row>
     <panel>
-      <title>Power Draw (mstats — watts/power/psu)</title>
+      <title>Fans (rpm)</title>
       <chart>
         <search>
           <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
-| search metric_name IN ("sensors.*watt*","sensors.*power*","sensors.*psu*")
-| foreach v* [eval Value=coalesce(Value,&lt;&lt;FIELD&gt;&gt;)]
-| fields - v*
-| xyseries _time metric_name Value</query>
+| search metric_name="*fan*"
+| rename v* as "sensors.*"</query>
           <done/>
         </search>
-        <option name="charting.chart">column</option>
-        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueRendering">connect</option>
         <option name="charting.drilldown">none</option>
       </chart>
     </panel>
+  </row>
+  <row>
     <panel>
-      <title>Distinct sensors.* Metrics (last hour)</title>
+      <title>Voltages (V - rails / Vcore / Vin)</title>
+      <chart>
+        <search>
+          <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
+| search metric_name="*_in*"
+| rename v* as "sensors.*"</query>
+          <done/>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueRendering">connect</option>
+        <option name="charting.drilldown">none</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Power draw (W - PSU rails, packages, GPU)</title>
+      <chart>
+        <search>
+          <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
+| search metric_name="*power*"
+| rename v* as "sensors.*"</query>
+          <done/>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueRendering">connect</option>
+        <option name="charting.drilldown">none</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Currents (A)</title>
+      <chart>
+        <search>
+          <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
+| search metric_name="*curr*"
+| rename v* as "sensors.*"</query>
+          <done/>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueRendering">connect</option>
+        <option name="charting.drilldown">none</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Humidity (% RH)</title>
+      <chart>
+        <search>
+          <query>| mstats avg("sensors.*") as "v*" where index=metrics by metric_name span=5m
+| search metric_name="*hum*"
+| rename v* as "sensors.*"</query>
+          <done/>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueRendering">connect</option>
+        <option name="charting.drilldown">none</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Distinct sensors.* metrics streaming</title>
       <single>
         <search>
           <query>| mcatalog values(metric_name) as m where index=metrics metric_name="sensors.*"
 | eval count=mvcount(m)</query>
           <done/>
         </search>
-        <option name="underLabel">sensors.* metrics streaming</option>
+        <option name="underLabel">metrics registered on the metrics index</option>
       </single>
     </panel>
   </row>

@@ -1,47 +1,122 @@
 <dashboard version="1.1" theme="light">
-  <label>Sensors Overview</label>
-  <description>Live Linux hwmon (lm-sensors) health: per-host status, current readings, and non-ok (alarm) sensor readings</description>
+  <label>TA-sensors Overview</label>
+  <description>Live Linux hwmon (lm-sensors) health on BMC-less hosts: fleet headline stats from the latest per-host snapshot, the full sensor value matrix, and alarmed sensors (hwmon _alarm latches).</description>
   <row>
     <panel>
-      <title>Hosts Reporting (latest)</title>
+      <title>Hosts reporting (latest)</title>
+      <single>
+        <search>
+          <query>index=main sourcetype="sensors:status"
+| dedup host
+| stats count(host) as value</query>
+          <done/>
+        </search>
+        <option name="underLabel">hosts with hwmon data</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Sensors seen (fleet, latest per host)</title>
+      <single>
+        <search>
+          <query>index=main sourcetype="sensors:status"
+| eventstats latest(_time) as lt by host
+| dedup host lt
+| rex field=_raw max_match=0 "\"(?&lt;k&gt;[^\"]+)\":\s*(?&lt;o&gt;\{[^{}]*\})"
+| where match(o,"\"status\"")
+| eval z=mvzip(k,o,"^^")
+| mvexpand z
+| rex field=z "^(?&lt;k&gt;[^^]+)\^\^(?&lt;o&gt;.+)$"
+| stats count(k) as value</query>
+          <done/>
+        </search>
+        <option name="underLabel">sensor readings in latest snapshots</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Max temperature (°C - fleet, latest per host)</title>
+      <single>
+        <search>
+          <query>index=main sourcetype="sensors:status"
+| eventstats latest(_time) as lt by host
+| dedup host lt
+| rex field=_raw max_match=0 "\"(?&lt;k&gt;[^\"]+)\":\s*(?&lt;o&gt;\{[^{}]*\})"
+| where match(o,"\"status\"")
+| eval z=mvzip(k,o,"^^")
+| mvexpand z
+| rex field=z "^(?&lt;k&gt;[^^]+)\^\^(?&lt;o&gt;.+)$"
+| where match(o,"\"units\": \"celsius\"")
+| spath input=o output=t path=reading_value
+| stats max(t) as value</query>
+          <done/>
+        </search>
+        <option name="underLabel">highest reading in latest snapshots</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Sensors in alarm (fleet, latest per host)</title>
+      <single>
+        <search>
+          <query>index=main sourcetype="sensors:status"
+| eventstats latest(_time) as lt by host
+| dedup host lt
+| rex field=_raw max_match=0 "\"(?&lt;k&gt;[^\"]+)\":\s*(?&lt;o&gt;\{[^{}]*\})"
+| where match(o,"\"status\"")
+| eval z=mvzip(k,o,"^^")
+| mvexpand z
+| rex field=z "^(?&lt;k&gt;[^^]+)\^\^(?&lt;o&gt;.+)$"
+| where match(o,"\"status\": \"alarm\"")
+| stats count(k) as value</query>
+          <done/>
+        </search>
+        <option name="underLabel">hwmon _alarm latches set</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>All sensors - latest value per host (one column per sensors.* metric)</title>
+      <table>
+        <search>
+          <query>| mstats avg("sensors.*") as "v*" where index=metrics by host, metric_name span=5m
+| stats last(v*) as "v*" by host
+| rename v* as "sensors.*"</query>
+          <done/>
+        </search>
+        <option name="count">200</option>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Alarmed sensors - latest snapshot per host</title>
       <table>
         <search>
           <query>index=main sourcetype="sensors:status"
-| stats latest(_time) as "Last seen", count as Reports by host
-| table host "Last seen" Reports</query>
+| dedup host
+| rex field=_raw max_match=0 "\"(?&lt;k&gt;[^\"]+)\":\s*(?&lt;o&gt;\{[^{}]*\})"
+| where match(o,"\"status\": \"alarm\"")
+| eval z=mvzip(k,o,"^^")
+| mvexpand z
+| rex field=z "^(?&lt;k&gt;[^^]+)\^\^(?&lt;o&gt;.+)$"
+| spath input=o path=sensor_name | spath input=o path=reading | spath input=o path=reading_value | spath input=o path=units
+| table host k sensor_name reading reading_value units</query>
           <done/>
         </search>
+        <option name="count">100</option>
         <option name="drilldown">none</option>
       </table>
     </panel>
   </row>
   <row>
     <panel>
-      <title>Current Sensor Readings (metrics)</title>
+      <title>Hosts reporting (detail)</title>
       <table>
         <search>
-          <query>| mstats avg("sensors.*") as "r*" where index=metrics by metric_name span=1h
-| foreach r* [eval Reading=coalesce(Reading,&lt;&lt;FIELD&gt;&gt;)]
-| fields - r*
-| table _time metric_name Reading
-| rename metric_name as Metric
-| sort Metric</query>
-          <done/>
-        </search>
-        <option name="drilldown">none</option>
-      </table>
-    </panel>
-  </row>
-  <row>
-    <panel>
-      <title>Non-OK / Alarm Readings (newest first)</title>
-      <table>
-        <search>
-          <query>index=main sourcetype="sensors:status" _raw="*alarm*"
-| sort - _time
-| table _time host _raw
-| rename _raw as Event
-| head 200</query>
+          <query>index=main sourcetype="sensors:status"
+| stats latest(_time) as "Last seen", count(host) as "Reports" by host
+| table host "Last seen" "Reports"
+| sort - "Last seen"</query>
           <done/>
         </search>
         <option name="drilldown">none</option>

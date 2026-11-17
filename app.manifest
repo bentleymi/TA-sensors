@@ -5,10 +5,10 @@
     "id": {
       "group": null,
       "name": "TA-sensors",
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     "author": [{"name":"Michael \"JKat54\" Bentley","email":"michael@bentleypc.com","company":"BentleyPC LLC"}],
-    "releaseDate": "11/13/2026",
+    "releaseDate": "11/16/2026",
     "description": "Collects Linux hwmon (lm-sensors class) board telemetry on BMC-less hosts via /sys/class/hwmon - no ipmitool or lm-sensors dependency. Emits sensor readings as JSON events to index=main (sourcetype sensors:status) and numeric sensor metrics to index=metrics (sourcetype sensors:metrics, sensors.* metrics), with overview and metrics dashboards.",
     "classification": {
       "intendedAudience": "IT",
