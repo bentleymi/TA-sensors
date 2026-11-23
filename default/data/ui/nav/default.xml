@@ -3,5 +3,6 @@
     <view name="sensors_overview" />
     <view name="sensors_metrics" />
     <search label="Sensors Events" search="search index=main sourcetype=sensors:status" />
+    <view name="license" />
   </nav>
 </application>
